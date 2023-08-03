@@ -1,0 +1,144 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Microwave Simulation</title>
+  <style>
+    .microwave {
+      width: 300px;
+      border: 2px solid #ccc;
+      border-radius: 10px;
+      padding: 20px;
+    }
+    .state {
+      font-size: 24px;
+      font-weight: bold;
+      margin-bottom: 20px;
+    }
+    .info {
+      font-size: 16px;
+      margin-bottom: 10px;
+    }
+    .btn-group {
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="row justify-content-center mt-5">
+      <div class="col-md-4">
+        <div class="microwave text-center p-4">
+            <div id="output"></div>
+          <div class="state">Microwave is OFF</div>
+          <div class="info">
+            <span class="badge bg-primary">Power: <span id="power">0</span>%</span>
+            <span class="badge bg-primary">Counter: <span id="counter">0</span>s</span>
+            <span class="badge bg-success">Status: <span id="status">OFF</span></span>
+          </div>
+          <div class="btn-group" role="group">
+            <button id="power-up" class="btn btn-primary">Power +10%</button>
+            <button id="power-down" class="btn btn-primary">Power -10%</button>
+          </div>
+          <div class="btn-group" role="group">
+            <button id="counter-up" class="btn btn-primary">Counter +10s</button>
+            <button id="counter-down" class="btn btn-primary">Counter -10s</button>
+          </div>
+          <button id="cancel" class="btn btn-danger">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const socket = new WebSocket('ws://localhost:8000/ws');
+
+    const outputDiv = document.getElementById('output')
+
+    let token = ''
+
+    socket.onopen = function(event) {
+        outputDiv.innerHTML = '<p>WebSocket connection established.</p>';
+        // Fetch the JWT from the server once the websocket connection is established.
+        fetchToken()
+    };
+
+    socket.onmessage = function(event) {
+        // This will be called whenever data is received from the WebSocket
+        const data = JSON.parse(event.data);
+        updateState(data)
+        // Handle the data as needed
+    };
+
+    socket.onclose = function(event) {
+        outputDiv.innerHTML = '<p>WebSocket connection closed.</p>';
+    };
+
+    socket.onerror = function(event) {
+        outputDiv.innerHTML = '<p>Error occurred in WebSocket connection.</p>';
+    };
+    // Function to update the microwave state on the web page
+    function updateState(state) {
+      const microwaveStateDiv = document.querySelector('.state');
+      microwaveStateDiv.textContent = `Microwave is ${state.on ? 'ON' : 'OFF'}`;
+
+      const powerSpan = document.getElementById('power');
+      powerSpan.textContent = state.power;
+
+      const counterSpan = document.getElementById('counter');
+      counterSpan.textContent = state.counter;
+
+      const statusSpan = document.getElementById('status');
+      statusSpan.textContent = state.on ? 'ON' : 'OFF';
+    }
+
+    // Function to handle button clicks
+    async function handleButtonClick(action, adjustment) {
+        await fetch(`/microwave/${action}?adjustment=${adjustment}`, { method: 'POST' })
+    }
+
+    // Fetch the JWT token from the server
+    async function fetchToken() {
+        try {
+            const response = await fetch('/get_token/');
+            const data = await response.json();
+            token = data.token;
+        } catch (error) {
+            console.error('Error fetching token:', error);
+        }
+    }
+
+    async function cancelRequest() {
+        // Proceed if token exists
+        if (token) {
+            try {
+                // Send a request to cancel endpoint, validate token in backend
+                const response = await fetch('/microwave/cancel', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`, // Attach the token in the 'Authorization' header
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({})
+                });
+                console.log('Microwave operation cancelled');
+            } catch (error) {
+                console.error('Error cancelling microwave operation:', error);
+            }
+        } else {
+            console.error('Token is not available. Request cannot be cancelled.');
+        }
+    }
+
+    // Add event listeners to the buttons
+    document.getElementById('power-up').addEventListener('click', () => handleButtonClick('power', '10'));
+    document.getElementById('power-down').addEventListener('click', () => handleButtonClick('power', '-10'));
+    document.getElementById('counter-up').addEventListener('click', () => handleButtonClick('counter', '10'));
+    document.getElementById('counter-down').addEventListener('click', () => handleButtonClick('counter', '-10'));
+    document.getElementById('cancel').addEventListener('click', () => cancelRequest());
+    
+  </script>
+</body>
+</html>
